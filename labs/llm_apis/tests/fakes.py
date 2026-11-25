@@ -29,17 +29,28 @@ class Reply:
     sse: str | None = None
 
 
+# Simuladores criados no teste atual; a fixture em conftest.py os confere ao final.
+CREATED: list["FakeAPI"] = []
+
+
 @dataclass
 class FakeAPI(ABC):
     """Fila de respostas programadas + registro das requisições recebidas."""
 
     queue: list[Reply] = field(default_factory=list)
     requests: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
+    unexpected: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        CREATED.append(self)
 
     def handle(self, request: httpx2.Request) -> httpx2.Response:
         body = json.loads(request.read() or b"{}")
         self.requests.append((request.url.path, body))
-        assert self.queue, f"requisição inesperada: {request.url.path}"
+        if not self.queue:
+            # Registrar é necessário: um SDK pode engolir a exceção abaixo.
+            self.unexpected.append(request.url.path)
+            raise AssertionError(f"requisição inesperada: {request.url.path}")
         reply = self.queue.pop(0)
         if reply.sse is not None:
             return httpx2.Response(
@@ -85,6 +96,15 @@ class FakeAPI(ABC):
 
     @abstractmethod
     def tool_result_ids_of(self, body: dict[str, Any]) -> list[str]: ...
+
+
+def assert_all_used(fakes: list[FakeAPI]) -> None:
+    """Falha se houve requisição sem resposta programada ou resposta que sobrou."""
+    problems = [f"requisição inesperada: {path}" for fake in fakes for path in fake.unexpected]
+    unused = sum(len(fake.queue) for fake in fakes)
+    if unused:
+        problems.append(f"{unused} resposta programada e não usada")
+    assert not problems, "; ".join(problems)
 
 
 def _sse(events: list[dict[str, Any]], *, named: bool = True) -> str:

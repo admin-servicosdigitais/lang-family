@@ -11,6 +11,8 @@ import os
 import pytest
 from dotenv import load_dotenv
 
+from labs.shared.settings import LIVE_ONLY_VARS
+
 load_dotenv()
 
 
@@ -23,6 +25,9 @@ def pytest_configure(config: pytest.Config) -> None:
         # Um .env com tracing ligado não pode fazer testes offline enviarem dados.
         os.environ["LANGSMITH_TRACING"] = "false"
         os.environ["LANGCHAIN_TRACING_V2"] = "false"
+        # Um teste que esqueça o simulador falha por falta de chave, em vez de gerar custo.
+        for name in LIVE_ONLY_VARS:
+            os.environ.pop(name, None)
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:

@@ -1,8 +1,18 @@
+from collections.abc import Iterator
+
 import pytest
 from pydantic import BaseModel, Field
 
-from labs.llm_apis.tests.fakes import FAKES, FakeAPI
+from labs.llm_apis.tests.fakes import CREATED, FAKES, FakeAPI, assert_all_used
 from labs.llm_apis.types import Tool
+
+
+@pytest.fixture(autouse=True)
+def verify_fakes() -> Iterator[None]:
+    """Todo simulador usado no teste precisa ter consumido exatamente o programado."""
+    CREATED.clear()
+    yield
+    assert_all_used(CREATED)
 
 
 @pytest.fixture(params=sorted(FAKES))

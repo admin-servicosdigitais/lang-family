@@ -38,6 +38,28 @@ def test_long_sections_are_split_within_size_limit() -> None:
     assert all(len(c.text) <= 200 and c.section == "Longa" for c in chunks)
 
 
+@pytest.mark.parametrize(
+    "raw",
+    ["---\n\nTexto depois de uma régua.", "---\ncategory: x\n# T\nTexto sem fechamento."],
+    ids=["regua-horizontal", "sem-fechamento"],
+)
+def test_unclosed_front_matter_is_treated_as_content(raw: str) -> None:
+    chunks = chunk_document("x.md", raw)
+
+    assert chunks
+    assert {c.category for c in chunks} == {"geral"}
+
+
+def test_front_matter_closing_at_end_of_file() -> None:
+    assert chunk_document("x.md", "---\ncategory: x\n---") == []
+
+
+def test_front_matter_with_windows_line_endings() -> None:
+    chunks = chunk_document("x.md", "---\r\ncategory: x\r\n---\r\n# T\r\nTexto")
+
+    assert [(c.category, c.text) for c in chunks] == [("x", "Texto")]
+
+
 def test_reingesting_does_not_duplicate() -> None:
     pipeline = build(ScriptedChatModel.from_script([]))
     before = pipeline.store.count()

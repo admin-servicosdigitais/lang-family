@@ -90,5 +90,5 @@ Situação: **aprovada**, **em validação** (escrita, aguardando aprovação) o
 | Aula | Tema | Origem em `labs/` | Situação |
 |---|---|---|---|
 | [15-Chain-of-Agents](15-Chain-of-Agents) | Estado, nós, arestas condicionais e redutores | `langgraph_patterns/chain_of_agents.py` | aprovada |
-| 16-Supervisor | `Command`, `interrupt` e schema dinâmico | `langgraph_patterns/supervisor.py` | pendente |
-| 17-Tree-of-Thoughts | `Send`, ramos paralelos e beam search | `langgraph_patterns/tree_of_thoughts.py` | pendente |
+| [16-Supervisor](16-Supervisor) | `Command`, `interrupt` e schema dinâmico | `langgraph_patterns/supervisor.py` | aprovada |
+| [17-Tree-of-Thoughts](17-Tree-of-Thoughts) | `Send`, ramos paralelos e beam search | `langgraph_patterns/tree_of_thoughts.py` | aprovada |

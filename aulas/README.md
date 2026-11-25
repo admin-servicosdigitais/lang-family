@@ -27,7 +27,8 @@ aulas/NN-Nome-do-Tema/
 
 Cada passo roda sozinho, com um comando. A partir do segundo, os comentários separam o
 que já foi visto do que é novo. Uma aula pode ter um arquivo de apoio, como o
-`simulador.py` da aula 02, para a simulação não esconder o conceito estudado.
+`simulador.py` da aula 02 ou o `modelo_falso.py` da aula 10, para a simulação não
+esconder o conceito estudado.
 
 Na aula 04, que trata de testes, os passos rodam com `uv run pytest <arquivo>`.
 
@@ -65,17 +66,17 @@ Situação: **aprovada**, **em validação** (escrita, aguardando aprovação) o
 |---|---|---|---|
 | [05-Fragmentacao](05-Fragmentacao) | Divisão por seção e tamanho, overlap, ids estáveis | `rag/chunking.py` | aprovada |
 | [06-Embeddings](06-Embeddings) | Léxico x semântico, normalização, cosseno | `rag/embeddings.py` | aprovada |
-| 07-Pipeline-RAG | Score mínimo, citações e reingestão | `rag/pipeline.py` | pendente |
-| 08-Avaliacao-da-Recuperacao | recall@k e MRR | `rag/evaluate.py` | pendente |
-| 09-Bancos-Vetoriais | Distância x similaridade, filtros, teste de contrato | `rag/stores/` | pendente |
+| [07-Pipeline-RAG](07-Pipeline-RAG) | Score mínimo, citações e reingestão | `rag/pipeline.py` | aprovada |
+| [08-Avaliacao-da-Recuperacao](08-Avaliacao-da-Recuperacao) | recall@k e MRR | `rag/evaluate.py` | aprovada |
+| [09-Bancos-Vetoriais](09-Bancos-Vetoriais) | Distância x similaridade, filtros, teste de contrato | `rag/stores/` | aprovada |
 
 ### Nível 3: LangChain e observabilidade
 
 | Aula | Tema | Origem em `labs/` | Situação |
 |---|---|---|---|
-| 10-Ferramentas-e-LCEL | `@tool`, composição de cadeias e roteamento | `observability/tools.py`, `observability/triage.py` | pendente |
-| 11-Agente-LangChain | `create_agent`, limites e memória | `observability/agent.py`, `shared/fake_model.py` | pendente |
-| 12-Tracing-e-PII | Callbacks, métricas e mascaramento | `observability/tracing.py` | pendente |
+| [10-Ferramentas-e-LCEL](10-Ferramentas-e-LCEL) | `@tool`, composição de cadeias e roteamento | `observability/tools.py`, `observability/triage.py` | aprovada |
+| [11-Agente-LangChain](11-Agente-LangChain) | `create_agent`, limites e memória | `observability/agent.py`, `shared/fake_model.py` | aprovada |
+| [12-Tracing-e-PII](12-Tracing-e-PII) | Callbacks, métricas e mascaramento | `observability/tracing.py` | aprovada |
 
 ### Nível 4: MCP
 

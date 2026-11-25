@@ -61,8 +61,12 @@ class FakeAPI(ABC):
     @abstractmethod
     def text(self, text: str) -> Reply: ...
 
+    def tool_call(self, name: str, arguments: dict[str, Any]) -> Reply:
+        return self.tool_calls([(name, arguments)])
+
     @abstractmethod
-    def tool_call(self, name: str, arguments: dict[str, Any]) -> Reply: ...
+    def tool_calls(self, calls: list[tuple[str, dict[str, Any]]]) -> Reply:
+        """Uma resposta pedindo várias ferramentas, com ids call_1, call_2..."""
 
     @abstractmethod
     def stream(self, chunks: list[str]) -> Reply: ...
@@ -71,10 +75,16 @@ class FakeAPI(ABC):
     def refusal(self) -> Reply: ...
 
     @abstractmethod
+    def stream_refusal(self) -> Reply: ...
+
+    @abstractmethod
     def system_of(self, body: dict[str, Any]) -> str: ...
 
     @abstractmethod
     def tool_results_of(self, body: dict[str, Any]) -> list[str]: ...
+
+    @abstractmethod
+    def tool_result_ids_of(self, body: dict[str, Any]) -> list[str]: ...
 
 
 def _sse(events: list[dict[str, Any]], *, named: bool = True) -> str:
@@ -129,16 +139,26 @@ class FakeOpenAI(FakeAPI):
         part = {"type": "refusal", "refusal": "não posso ajudar"}
         return Reply(body=self._response([self._message(part)]))
 
-    def tool_call(self, name: str, arguments: dict[str, Any]) -> Reply:
-        item = {
+    def _function_call(self, number: int, name: str, arguments: str) -> dict[str, Any]:
+        return {
             "type": "function_call",
-            "id": "fc_1",
-            "call_id": "call_1",
+            "id": f"fc_{number}",
+            "call_id": f"call_{number}",
             "name": name,
-            "arguments": json.dumps(arguments),
+            "arguments": arguments,
             "status": "completed",
         }
-        return Reply(body=self._response([item]))
+
+    def tool_calls(self, calls: list[tuple[str, dict[str, Any]]]) -> Reply:
+        items = [
+            self._function_call(number, name, json.dumps(arguments))
+            for number, (name, arguments) in enumerate(calls, start=1)
+        ]
+        return Reply(body=self._response(items))
+
+    def raw_tool_call(self, name: str, arguments: str) -> Reply:
+        """Argumentos como texto livre, para simular um JSON inválido."""
+        return Reply(body=self._response([self._function_call(1, name, arguments)]))
 
     def stream(self, chunks: list[str]) -> Reply:
         events = [
@@ -155,11 +175,25 @@ class FakeOpenAI(FakeAPI):
         ]
         return Reply(sse=_sse(events))
 
+    def stream_refusal(self) -> Reply:
+        event = {
+            "type": "response.refusal.delta",
+            "item_id": "msg_1",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": "não posso ajudar",
+            "sequence_number": 0,
+        }
+        return Reply(sse=_sse([event]))
+
     def system_of(self, body: dict[str, Any]) -> str:
         return str(body["instructions"])
 
     def tool_results_of(self, body: dict[str, Any]) -> list[str]:
         return [i["output"] for i in body["input"] if i["type"] == "function_call_output"]
+
+    def tool_result_ids_of(self, body: dict[str, Any]) -> list[str]:
+        return [i["call_id"] for i in body["input"] if i["type"] == "function_call_output"]
 
 
 class FakeAnthropic(FakeAPI):
@@ -187,11 +221,17 @@ class FakeAnthropic(FakeAPI):
     def refusal(self) -> Reply:
         return Reply(body=self._message([], "refusal"))
 
-    def tool_call(self, name: str, arguments: dict[str, Any]) -> Reply:
-        block = {"type": "tool_use", "id": "toolu_1", "name": name, "input": arguments}
-        return Reply(body=self._message([block], "tool_use"))
+    def tool_calls(self, calls: list[tuple[str, dict[str, Any]]]) -> Reply:
+        blocks = [
+            {"type": "tool_use", "id": f"call_{number}", "name": name, "input": arguments}
+            for number, (name, arguments) in enumerate(calls, start=1)
+        ]
+        return Reply(body=self._message(blocks, "tool_use"))
 
-    def stream(self, chunks: list[str]) -> Reply:
+    def stream_refusal(self) -> Reply:
+        return self.stream([], stop_reason="refusal")
+
+    def stream(self, chunks: list[str], stop_reason: str = "end_turn") -> Reply:
         start = self._message([], "end_turn") | {"stop_reason": None}
         events: list[dict[str, Any]] = [
             {"type": "message_start", "message": start},
@@ -211,7 +251,7 @@ class FakeAnthropic(FakeAPI):
             {"type": "content_block_stop", "index": 0},
             {
                 "type": "message_delta",
-                "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+                "delta": {"stop_reason": stop_reason, "stop_sequence": None},
                 "usage": {"output_tokens": 5},
             },
             {"type": "message_stop"},
@@ -224,6 +264,10 @@ class FakeAnthropic(FakeAPI):
     def tool_results_of(self, body: dict[str, Any]) -> list[str]:
         blocks = body["messages"][-1]["content"]
         return [b["content"] for b in blocks if b["type"] == "tool_result"]
+
+    def tool_result_ids_of(self, body: dict[str, Any]) -> list[str]:
+        blocks = body["messages"][-1]["content"]
+        return [b["tool_use_id"] for b in blocks if b["type"] == "tool_result"]
 
 
 class FakeGemini(FakeAPI):
@@ -254,16 +298,23 @@ class FakeGemini(FakeAPI):
     def refusal(self) -> Reply:
         return Reply(body={"candidates": [{"finishReason": "SAFETY", "index": 0}]})
 
-    def tool_call(self, name: str, arguments: dict[str, Any]) -> Reply:
-        part = {
-            "functionCall": {"id": "call_1", "name": name, "args": arguments},
-            "thoughtSignature": "YXNzaW5hdHVyYQ==",
-        }
-        return Reply(body=self._response([part]))
+    def tool_calls(self, calls: list[tuple[str, dict[str, Any]]]) -> Reply:
+        parts: list[dict[str, Any]] = [
+            {"functionCall": {"id": f"call_{number}", "name": name, "args": arguments}}
+            for number, (name, arguments) in enumerate(calls, start=1)
+        ]
+        # Em chamadas paralelas, a assinatura acompanha só a primeira.
+        parts[0]["thoughtSignature"] = "YXNzaW5hdHVyYQ=="
+        return Reply(body=self._response(parts))
 
     def stream(self, chunks: list[str]) -> Reply:
-        events = [self._response([{"text": chunk}]) for chunk in chunks]
+        return self.stream_events([self._response([{"text": chunk}]) for chunk in chunks])
+
+    def stream_events(self, events: list[dict[str, Any]]) -> Reply:
         return Reply(sse=_sse(events, named=False))
+
+    def stream_refusal(self) -> Reply:
+        return self.stream_events([{"candidates": [{"finishReason": "SAFETY", "index": 0}]}])
 
     def system_of(self, body: dict[str, Any]) -> str:
         return str(body["systemInstruction"]["parts"][0]["text"])
@@ -271,6 +322,9 @@ class FakeGemini(FakeAPI):
     def tool_results_of(self, body: dict[str, Any]) -> list[str]:
         parts = body["contents"][-1]["parts"]
         return [str(next(iter(p["functionResponse"]["response"].values()))) for p in parts]
+
+    def tool_result_ids_of(self, body: dict[str, Any]) -> list[str]:
+        return [str(p["functionResponse"]["id"]) for p in body["contents"][-1]["parts"]]
 
 
 FAKES: dict[str, type[FakeAPI]] = {

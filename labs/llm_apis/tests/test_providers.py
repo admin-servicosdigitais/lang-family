@@ -1,6 +1,7 @@
 """O mesmo contrato verificado nos três provedores (offline)."""
 
 import json
+from contextlib import nullcontext
 
 import pytest
 from pydantic import BaseModel
@@ -91,6 +92,52 @@ def test_tool_failures_are_reported_to_the_model(
     assert expected in fake.tool_results_of(fake.requests[1][1])[0]
 
 
+def test_parallel_tool_calls_are_all_answered_in_one_turn(fake: FakeAPI, order_tool: Tool) -> None:
+    calls = [("consultar_pedido", {"order_id": order}) for order in ("P-1001", "P-1002")]
+    fake.queue = [fake.tool_calls(calls), fake.text("Um enviado, outro aguardando.")]
+
+    result = fake.provider().run_tools("status dos dois pedidos", [order_tool])
+
+    assert [r.output for r in result.tool_runs] == ["enviado", "aguardando pagamento"]
+    assert len(fake.requests) == 2
+    second = fake.requests[1][1]
+    assert fake.tool_results_of(second) == ["enviado", "aguardando pagamento"]
+    # Cada resultado precisa apontar para o pedido que o originou.
+    assert fake.tool_result_ids_of(second) == ["call_1", "call_2"]
+
+
+def test_openai_malformed_tool_arguments_are_reported_to_the_model(order_tool: Tool) -> None:
+    fake = FakeOpenAI()
+    fake.queue = [
+        fake.raw_tool_call("consultar_pedido", '{"order_id": "P-10'),
+        fake.text("Pode repetir o número?"),
+    ]
+
+    result = fake.provider().run_tools("status", [order_tool])
+
+    assert result.text == "Pode repetir o número?"
+    assert result.tool_runs[0].is_error
+    assert "argumentos inválidos" in fake.tool_results_of(fake.requests[1][1])[0]
+
+
+def test_tool_receives_nested_models_as_instances() -> None:
+    class Item(BaseModel):
+        sku: str
+
+    class Args(BaseModel):
+        items: list[Item]
+        main: Item
+
+    def describe(items: list[Item], main: Item) -> str:
+        return f"{main.sku}: {', '.join(item.sku for item in items)}"
+
+    tool = Tool("descrever", "Descreve itens.", Args, describe)
+
+    run = tool.run({"items": [{"sku": "A1"}, {"sku": "B2"}], "main": {"sku": "A1"}})
+
+    assert (run.is_error, run.output) == (False, "A1: A1, B2")
+
+
 def test_tool_loop_stops_at_max_turns(fake: FakeAPI, order_tool: Tool) -> None:
     call = fake.tool_call("consultar_pedido", {"order_id": "P-1001"})
     fake.queue = [call, call]
@@ -174,6 +221,48 @@ def test_gemini_tool_loop_preserves_thought_signature(order_tool: Tool) -> None:
     model_turn = fake.requests[1][1]["contents"][1]
     assert model_turn["parts"][0]["thoughtSignature"] == "YXNzaW5hdHVyYQ=="
     assert fake.requests[1][1]["contents"][2]["parts"][0]["functionResponse"]["id"] == "call_1"
+
+
+@pytest.mark.parametrize(
+    "reply",
+    ['{"category": "ent', '{"category": "entrega"}'],
+    ids=["json-incompleto", "campo-ausente"],
+)
+def test_invalid_structured_output_becomes_a_typed_error(fake: FakeAPI, reply: str) -> None:
+    fake.queue = [fake.text(reply)]
+
+    with pytest.raises(RefusalError):
+        fake.provider().structured("Classifique", Ticket)
+
+
+def test_refusal_during_stream_becomes_a_typed_error(fake: FakeAPI) -> None:
+    fake.queue = [fake.stream_refusal()]
+
+    with pytest.raises(RefusalError):
+        list(fake.provider().stream("pedido recusado"))
+
+
+def test_gemini_blocked_prompt_during_stream_becomes_a_typed_error() -> None:
+    fake = FakeGemini()
+    fake.queue = [fake.stream_events([{"promptFeedback": {"blockReason": "SAFETY"}}])]
+
+    with pytest.raises(RefusalError):
+        list(fake.provider().stream("pedido bloqueado"))
+
+
+@pytest.mark.parametrize(("reason", "blocked"), [("SAFETY", True), ("MAX_TOKENS", False)])
+def test_gemini_stream_finish_reason_after_partial_text(reason: str, blocked: bool) -> None:
+    fake = FakeGemini()
+    first = {"candidates": [{"content": {"role": "model", "parts": [{"text": "Bom "}]}}]}
+    last = {"candidates": [{"finishReason": reason}]}
+    fake.queue = [fake.stream_events([first, last])]
+    chunks: list[str] = []
+
+    with pytest.raises(RefusalError) if blocked else nullcontext():
+        chunks.extend(fake.provider().stream("x"))
+
+    # O texto já entregue não é desfeito: quem consome precisa tratar a falha no meio.
+    assert chunks == ["Bom "]
 
 
 def test_openai_tool_loop_chains_previous_response(order_tool: Tool) -> None:

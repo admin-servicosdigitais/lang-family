@@ -6,7 +6,7 @@ from typing import Any
 
 import anthropic
 from anthropic.types import Message
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from labs.llm_apis.types import (
     ChatResult,
@@ -86,10 +86,14 @@ class AnthropicProvider:
         self, prompt: str, schema: type[T], *, system: str | None = None
     ) -> T:
         messages: list[Any] = [{"role": "user", "content": prompt}]
-        with self._errors():
-            message = self.client.messages.parse(
-                **self._request(messages, system), output_format=schema
-            )
+        try:
+            with self._errors():
+                message = self.client.messages.parse(
+                    **self._request(messages, system), output_format=schema
+                )
+        except ValidationError as error:
+            # O SDK valida a resposta dentro de parse().
+            raise RefusalError(self.name, "o modelo não devolveu o formato pedido") from error
         self._check_refusal(message)
         if message.parsed_output is None:
             raise RefusalError(self.name, "o modelo não devolveu o formato pedido")

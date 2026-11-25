@@ -7,7 +7,7 @@ from typing import Any
 
 import openai
 from openai.types.responses import Response
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from labs.llm_apis.types import (
     ChatResult,
@@ -60,6 +60,15 @@ class OpenAIProvider:
             return Usage()
         return Usage(response.usage.input_tokens, response.usage.output_tokens)
 
+    @staticmethod
+    def _run_call(tools: list[Tool], name: str, raw_arguments: str) -> ToolRun:
+        # A OpenAI envia os argumentos como texto, que pode não ser um JSON válido.
+        try:
+            arguments = json.loads(raw_arguments)
+        except json.JSONDecodeError as error:
+            return ToolRun(name, {}, f"argumentos inválidos: {error}", True)
+        return run_tool(tools, name, arguments)
+
     def generate(self, prompt: str, *, system: str | None = None) -> ChatResult:
         with self._errors():
             response = self.client.responses.create(**self._request(prompt, system))
@@ -72,16 +81,22 @@ class OpenAIProvider:
                 for event in events:
                     if event.type == "response.output_text.delta":
                         yield event.delta
+                    elif event.type == "response.refusal.delta":
+                        raise RefusalError(self.name, "o modelo recusou a requisição")
                     elif event.type in ("response.failed", "error"):
                         raise LLMError(self.name, f"falha durante o stream: {event}")
 
     def structured[T: BaseModel](
         self, prompt: str, schema: type[T], *, system: str | None = None
     ) -> T:
-        with self._errors():
-            response = self.client.responses.parse(
-                **self._request(prompt, system), text_format=schema
-            )
+        try:
+            with self._errors():
+                response = self.client.responses.parse(
+                    **self._request(prompt, system), text_format=schema
+                )
+        except ValidationError as error:
+            # O SDK valida a resposta dentro de parse().
+            raise RefusalError(self.name, "o modelo não devolveu o formato pedido") from error
         parsed: T | None = response.output_parsed
         if parsed is None:
             raise RefusalError(self.name, "o modelo não devolveu o formato pedido")
@@ -119,7 +134,7 @@ class OpenAIProvider:
                 return self._result(response, usage, runs)
             outputs = []
             for call in calls:
-                run = run_tool(tools, call.name, json.loads(call.arguments))
+                run = self._run_call(tools, call.name, call.arguments)
                 runs.append(run)
                 outputs.append(
                     {"type": "function_call_output", "call_id": call.call_id, "output": run.output}

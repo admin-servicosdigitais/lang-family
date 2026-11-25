@@ -53,7 +53,8 @@ class Tool:
         """Executa a ferramenta. Falhas voltam ao modelo em vez de derrubar o fluxo."""
         try:
             args = self.args_model.model_validate(arguments)
-            output = str(self.function(**args.model_dump()))
+            # dict(args) preserva modelos aninhados; model_dump() os viraria em dicts.
+            output = str(self.function(**dict(args)))
         except ValidationError as error:
             return ToolRun(self.name, arguments, f"argumentos inválidos: {error}", True)
         except Exception as error:

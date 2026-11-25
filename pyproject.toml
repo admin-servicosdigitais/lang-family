@@ -1,0 +1,77 @@
+[project]
+name = "lang-family"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=2.14.0",
+    "chromadb>=1.5.9",
+    "fastembed>=0.9.1",
+    "google-genai>=3.6.1",
+    "httpx>=0.28.1",
+    "httpx2>=2.16.2",
+    "langchain>=1.5.2",
+    "langchain-anthropic>=1.7.12",
+    "langchain-core>=1.8.4",
+    "langchain-google-genai>=4.5.2",
+    "langchain-mcp-adapters>=0.3.2",
+    "langchain-openai>=1.8.5",
+    "langchain-text-splitters>=1.2.0",
+    "langfuse>=5.2.0",
+    "langgraph>=1.2.24",
+    "langsmith>=0.16.2",
+    "mcp>=1.30.0",
+    "openai>=3.59.0",
+    "pinecone>=10.3.0",
+    "pydantic>=2.14.4",
+    "pymilvus[milvus-lite]>=3.0.3",
+    "python-dotenv>=1.2.4",
+    "qdrant-client>=1.20.0",
+    "weaviate-client>=4.24.1",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.1",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["labs"]
+pythonpath = ["."]
+addopts = ["-ra", "--strict-markers", "--strict-config", "--import-mode=importlib"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "live: chama APIs reais e pagas (exige --live e a chave do provedor)",
+    "docker: exige contêineres dos arquivos em infra/",
+    "embeddings: usa o modelo local de embeddings (baixa ~220 MB na primeira execução)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "ASYNC", "PT"]
+# RUF001-003 reclamam de caracteres legítimos em textos em português.
+ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+packages = ["labs"]
+
+[[tool.mypy.overrides]]
+# Os stubs gerados do pymilvus têm erros de sintaxe para o mypy: ignora o pacote.
+module = ["pymilvus", "pymilvus.*"]
+follow_imports = "skip"
+follow_imports_for_stubs = true
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["labs"]
+omit = ["*/tests/*"]

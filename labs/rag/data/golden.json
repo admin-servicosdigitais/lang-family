@@ -1,0 +1,13 @@
+[
+  {"question": "Me arrependi da compra, quanto tempo tenho para cancelar?", "source": "trocas.md", "section": "Prazo para desistência"},
+  {"question": "O aparelho chegou quebrado de fábrica, como faço para trocar?", "source": "trocas.md", "section": "Troca por defeito"},
+  {"question": "Posso devolver um item sem a caixa?", "source": "trocas.md", "section": "Condições do produto"},
+  {"question": "Quantos dias demora para chegar em uma cidade do interior?", "source": "entregas.md", "section": "Prazos de entrega"},
+  {"question": "Onde acompanho o pacote que está a caminho?", "source": "entregas.md", "section": "Rastreamento"},
+  {"question": "A partir de qual valor não pago frete?", "source": "entregas.md", "section": "Frete grátis"},
+  {"question": "Dá para dividir a compra em várias vezes no cartão?", "source": "pagamentos.md", "section": "Parcelamento"},
+  {"question": "Tem abatimento se eu pagar com Pix?", "source": "pagamentos.md", "section": "Desconto no Pix"},
+  {"question": "Quando o dinheiro do estorno volta para mim?", "source": "pagamentos.md", "section": "Reembolso"},
+  {"question": "Derrubei água no notebook, a garantia cobre?", "source": "garantia.md", "section": "Exclusões"},
+  {"question": "Quero que apaguem minhas informações pessoais do sistema.", "source": "privacidade.md", "section": "Exclusão de dados"}
+]

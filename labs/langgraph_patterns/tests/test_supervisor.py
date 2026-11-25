@@ -6,7 +6,7 @@ import pytest
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.types import Command
+from langgraph.types import Command, interrupt
 
 from labs.langgraph_patterns.supervisor import FINISH, Worker, build_team, llm_worker
 from labs.observability.tools import calcular_frete, consultar_pedido
@@ -119,6 +119,34 @@ def test_worker_failure_is_reported_and_the_team_continues() -> None:
 
     assert [r["ok"] for r in state["reports"]] == [False, True]
     assert "FALHOU): TimeoutError" in supervisor.calls[1][-1].text
+
+
+def test_interrupt_raised_inside_a_worker_pauses_the_team() -> None:
+    def asks_first(_: str) -> str:
+        return f"confirmado: {interrupt('posso continuar?')}"
+
+    supervisor = ScriptedChatModel.from_script([decide("pedidos", "x"), decide(FINISH, "feito")])
+    team = build_team(
+        supervisor, [Worker("pedidos", "consulta", asks_first)], checkpointer=InMemorySaver()
+    )
+    config: RunnableConfig = {"configurable": {"thread_id": "caso-2"}}
+
+    paused = team.invoke({"task": "t"}, config)
+
+    assert paused["__interrupt__"][0].value == "posso continuar?"
+
+    state = team.invoke(Command(resume="sim"), config)
+
+    assert state["reports"] == [
+        {"worker": "pedidos", "instruction": "x", "result": "confirmado: sim", "ok": True}
+    ]
+
+
+def test_worker_cannot_use_the_reserved_finish_name() -> None:
+    reserved = Worker(FINISH, "nunca seria acionado", lambda _: "")
+
+    with pytest.raises(ValueError, match="reservado"):
+        build_team(ScriptedChatModel.from_script([]), [reserved])
 
 
 @pytest.mark.parametrize(("approved", "executed"), [(True, ["reembolso"]), (False, [])])

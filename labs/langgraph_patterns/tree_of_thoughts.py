@@ -14,14 +14,18 @@ from dataclasses import dataclass
 from fractions import Fraction
 from typing import Annotated, Any, Literal, TypedDict
 
+from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.runnables import Runnable, RunnableLambda
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Send
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 TARGET = Fraction(24)
+# Números legítimos do jogo são curtos; notação como "1e999999999" custaria caro.
+MAX_NUMBER_LENGTH = 20
 
 PROPOSE_PROMPT = (
     "Jogo do 24. Proponha até {k} próximos passos. Cada passo combina DOIS dos números "
@@ -63,6 +67,8 @@ class Node:
 
     def apply(self, step: Step) -> "Node | None":
         """Aplica o passo se for válido; passos inventados pelo modelo são descartados."""
+        if any(len(t) > MAX_NUMBER_LENGTH or "e" in t.lower() for t in (step.a, step.b)):
+            return None
         try:
             a, b = Fraction(step.a), Fraction(step.b)
             remaining = list(self.numbers)
@@ -107,12 +113,21 @@ class _Branch(TypedDict):
     node: Node
 
 
+def _structured(model: BaseChatModel, schema: type[BaseModel]) -> Runnable[Any, Any]:
+    """Resposta fora do formato vira None; falhas de rede ou de chave continuam subindo."""
+    structured: Runnable[Any, Any] = model.with_structured_output(schema)
+    unreadable: Runnable[Any, Any] = RunnableLambda(lambda _: None)
+    return structured.with_fallbacks(
+        [unreadable], exceptions_to_handle=(OutputParserException, ValidationError)
+    )
+
+
 def build_tot(
     model: BaseChatModel, *, breadth: int = 5, proposals: int = 8
 ) -> CompiledStateGraph[Any, Any, Any, Any]:
     """``breadth`` é quantos estados sobrevivem a cada nível (1 = busca gulosa)."""
-    proposer = model.with_structured_output(Proposals)
-    rater = model.with_structured_output(Rating)
+    proposer = _structured(model, Proposals)
+    rater = _structured(model, Rating)
 
     def fan_out(state: SearchState) -> list[Send] | str:
         if state.get("solution") or not state.get("frontier"):
@@ -127,6 +142,8 @@ def build_tot(
                 HumanMessage(describe(node.numbers)),
             ]
         )
+        if reply is None:
+            return {"candidates": []}
         children = (node.apply(step) for step in reply.steps[:proposals])
         return {"candidates": [child for child in children if child is not None]}
 
@@ -147,7 +164,8 @@ def build_tot(
             scored = [
                 Node(n.numbers, n.history, r.score)
                 for n, r in zip(open_nodes, ratings, strict=True)
-                if r.score > 0  # nota zero = ramo impossível, podado
+                # Nota zero = ramo impossível; sem nota legível, o ramo também sai.
+                if r is not None and r.score > 0
             ]
             survivors = sorted(scored, key=lambda n: n.score, reverse=True)[:breadth]
         return {

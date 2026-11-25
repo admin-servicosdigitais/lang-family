@@ -100,3 +100,40 @@ def test_model_cannot_claim_a_solution_it_did_not_compute() -> None:
     result = solve(ScriptedChatModel(responder=respond), [1, 1, 1, 1])
 
     assert result["solution"] is None
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        AIMessage("some 4 com 6"),
+        tool_call("Proposals", {"steps": [{"a": "4", "op": "^", "b": "6"}]}),
+    ],
+    ids=["texto-solto", "operador-invalido"],
+)
+def test_unreadable_proposal_discards_only_that_branch(reply: AIMessage) -> None:
+    result = solve(ScriptedChatModel(responder=lambda *_: reply), [1, 4, 6])
+
+    assert (result["solution"], result["frontier"], result["explored"]) == (None, [], 0)
+
+
+@pytest.mark.parametrize(
+    "rating",
+    [AIMessage("boa"), tool_call("Rating", {"score": 11})],
+    ids=["texto-solto", "nota-fora-da-faixa"],
+)
+def test_unreadable_rating_prunes_the_state(rating: AIMessage) -> None:
+    def respond(_: list[BaseMessage], tools: list[str]) -> AIMessage:
+        if tools == ["Proposals"]:
+            return tool_call("Proposals", {"steps": [{"a": "4", "op": "+", "b": "6"}]})
+        return rating
+
+    result = solve(ScriptedChatModel(responder=respond), [1, 4, 6])
+
+    assert (result["solution"], result["frontier"], result["explored"]) == (None, [], 1)
+
+
+@pytest.mark.parametrize("text", ["1e3", "0" * 40 + "1000"], ids=["expoente", "texto-longo"])
+def test_oversized_number_notation_is_rejected(text: str) -> None:
+    node = Node((Fraction(2), Fraction(1000)))
+
+    assert node.apply(Step(a=text, op="+", b="2")) is None

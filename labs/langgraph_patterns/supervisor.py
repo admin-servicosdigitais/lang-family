@@ -17,6 +17,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.errors import GraphBubbleUp
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, interrupt
@@ -103,6 +104,8 @@ def build_team(
     max_steps: int = 6,
     checkpointer: BaseCheckpointSaver[Any] | None = None,
 ) -> CompiledStateGraph[Any, Any, Any, Any]:
+    if any(w.name == FINISH for w in workers):
+        raise ValueError(f"{FINISH} é um nome reservado ao supervisor")
     schema = _decision_schema(workers)
     router = model.with_structured_output(schema)
     roster = "\n".join(f"- {w.name}: {w.description}" for w in workers)
@@ -145,6 +148,9 @@ def build_team(
                     return Command(goto="supervisor", update={"reports": [report]})
             try:
                 result, ok = worker.run(instruction), True
+            except GraphBubbleUp:
+                # Pausas e desvios do LangGraph usam exceções: não são falhas.
+                raise
             except Exception as error:
                 result, ok = f"{type(error).__name__}: {error}", False
             report = Report(worker=worker.name, instruction=instruction, result=result, ok=ok)

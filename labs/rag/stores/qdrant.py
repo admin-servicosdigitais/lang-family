@@ -33,6 +33,8 @@ class QdrantStore:
             )
 
     def upsert(self, chunks: Sequence[Chunk], vectors: Sequence[Vector]) -> None:
+        if not chunks:
+            return  # o SDK rejeita um lote vazio
         points = [
             models.PointStruct(id=_point_id(c.id), vector=v, payload=payload_of(c))
             for c, v in zip(chunks, vectors, strict=True)

@@ -28,6 +28,8 @@ class ChromaStore:
         )
 
     def upsert(self, chunks: Sequence[Chunk], vectors: Sequence[Vector]) -> None:
+        if not chunks:
+            return  # o SDK rejeita um lote vazio
         metadatas: Any = [payload_of(chunk) for chunk in chunks]
         embeddings: Any = list(vectors)
         self._collection.upsert(

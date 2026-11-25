@@ -37,6 +37,8 @@ def load_golden(path: Path = DATA_DIR / "golden.json") -> list[Case]:
 def evaluate(
     store: VectorStore, embedder: Embedder, cases: Sequence[Case], *, k: int = 3
 ) -> Metrics:
+    if not cases:
+        raise ValueError("informe ao menos um caso de avaliação")
     found = 0
     reciprocal_ranks = 0.0
     for case in cases:

@@ -91,6 +91,20 @@ def test_answer_sends_context_and_maps_citations() -> None:
     assert [c.section for c in answer.citations] == ["Desconto no Pix"]
 
 
+@pytest.mark.parametrize(
+    "reply",
+    ["Há desconto [1, 2].", "Há desconto [1; 2].", "Há desconto [1,2] [99, 1]."],
+    ids=["virgula", "ponto-e-virgula", "repetida-e-inexistente"],
+)
+def test_grouped_citations_are_mapped(reply: str) -> None:
+    llm = ScriptedChatModel.from_script([AIMessage(reply)])
+    pipeline = build(llm, min_score=-1)
+
+    answer = pipeline.answer("Pagamentos via Pix recebem desconto?")
+
+    assert answer.citations == tuple(hit.chunk for hit in answer.retrieved[:2])
+
+
 def test_category_filter_limits_retrieval() -> None:
     pipeline = build(ScriptedChatModel.from_script([]), min_score=-1)
 

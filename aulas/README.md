@@ -29,6 +29,8 @@ Cada passo roda sozinho, com um comando. A partir do segundo, os comentários se
 que já foi visto do que é novo. Uma aula pode ter um arquivo de apoio, como o
 `simulador.py` da aula 02, para a simulação não esconder o conceito estudado.
 
+Na aula 04, que trata de testes, os passos rodam com `uv run pytest <arquivo>`.
+
 ```bash
 uv run python aulas/01-Contrato-Comum-e-Erros/01_resultado.py
 ```
@@ -55,14 +57,14 @@ Situação: **aprovada**, **em validação** (escrita, aguardando aprovação) o
 | [01-Contrato-Comum-e-Erros](01-Contrato-Comum-e-Erros) | Resultado normalizado, `Protocol`, erros e fallback | `llm_apis/types.py`, `llm_apis/base.py` | aprovada |
 | [02-Geracao-Streaming-e-Saida-Estruturada](02-Geracao-Streaming-e-Saida-Estruturada) | Os três SDKs: texto, streaming e Pydantic | `llm_apis/*_provider.py` | aprovada |
 | [03-Tool-Calling](03-Tool-Calling) | Laço de ferramentas, limite de turnos e histórico | `run_tools` em `llm_apis/*_provider.py` | aprovada |
-| 04-Testes-sem-Chave | Simulação na camada HTTP com o SDK real | `shared/fake_http.py`, `llm_apis/tests/` | pendente |
+| [04-Testes-sem-Chave](04-Testes-sem-Chave) | Simulação na camada HTTP com o SDK real | `shared/fake_http.py`, `llm_apis/tests/` | aprovada |
 
 ### Nível 2: RAG
 
 | Aula | Tema | Origem em `labs/` | Situação |
 |---|---|---|---|
-| 05-Fragmentacao | Divisão por seção e tamanho, overlap, ids estáveis | `rag/chunking.py` | pendente |
-| 06-Embeddings | Léxico x semântico, normalização, cosseno | `rag/embeddings.py` | pendente |
+| [05-Fragmentacao](05-Fragmentacao) | Divisão por seção e tamanho, overlap, ids estáveis | `rag/chunking.py` | aprovada |
+| [06-Embeddings](06-Embeddings) | Léxico x semântico, normalização, cosseno | `rag/embeddings.py` | aprovada |
 | 07-Pipeline-RAG | Score mínimo, citações e reingestão | `rag/pipeline.py` | pendente |
 | 08-Avaliacao-da-Recuperacao | recall@k e MRR | `rag/evaluate.py` | pendente |
 | 09-Bancos-Vetoriais | Distância x similaridade, filtros, teste de contrato | `rag/stores/` | pendente |

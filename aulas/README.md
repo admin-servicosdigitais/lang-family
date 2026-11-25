@@ -82,13 +82,13 @@ Situação: **aprovada**, **em validação** (escrita, aguardando aprovação) o
 
 | Aula | Tema | Origem em `labs/` | Situação |
 |---|---|---|---|
-| 13-Servidor-MCP | Tools, resources, prompts e validação | `mcp_lab/server.py` | pendente |
-| 14-Transportes-e-Cliente-MCP | stdio, Streamable HTTP e agente cliente | `mcp_lab/agent.py` | pendente |
+| [13-Servidor-MCP](13-Servidor-MCP) | Tools, resources, prompts e validação | `mcp_lab/server.py` | aprovada |
+| [14-Transportes-e-Cliente-MCP](14-Transportes-e-Cliente-MCP) | stdio, Streamable HTTP e agente cliente | `mcp_lab/agent.py` | aprovada |
 
 ### Nível 5: padrões com LangGraph
 
 | Aula | Tema | Origem em `labs/` | Situação |
 |---|---|---|---|
-| 15-Chain-of-Agents | Estado, nós, arestas condicionais e redutores | `langgraph_patterns/chain_of_agents.py` | pendente |
+| [15-Chain-of-Agents](15-Chain-of-Agents) | Estado, nós, arestas condicionais e redutores | `langgraph_patterns/chain_of_agents.py` | aprovada |
 | 16-Supervisor | `Command`, `interrupt` e schema dinâmico | `langgraph_patterns/supervisor.py` | pendente |
 | 17-Tree-of-Thoughts | `Send`, ramos paralelos e beam search | `langgraph_patterns/tree_of_thoughts.py` | pendente |

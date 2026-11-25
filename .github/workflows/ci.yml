@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.4.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+      - uses: actions/cache@v6
+        with:
+          path: .cache/fastembed
+          key: fastembed-minilm
+      - name: Subir bancos vetoriais
+        run: docker compose -f infra/vectordbs.compose.yml up -d --wait
+      - name: Testes (offline + bancos em contêiner)
+        run: uv run pytest --cov --cov-report=term-missing

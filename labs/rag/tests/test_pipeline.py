@@ -38,6 +38,28 @@ def test_long_sections_are_split_within_size_limit() -> None:
     assert all(len(c.text) <= 200 and c.section == "Longa" for c in chunks)
 
 
+@pytest.mark.parametrize(
+    "raw",
+    ["---\n\nTexto depois de uma régua.", "---\ncategory: x\n# T\nTexto sem fechamento."],
+    ids=["regua-horizontal", "sem-fechamento"],
+)
+def test_unclosed_front_matter_is_treated_as_content(raw: str) -> None:
+    chunks = chunk_document("x.md", raw)
+
+    assert chunks
+    assert {c.category for c in chunks} == {"geral"}
+
+
+def test_front_matter_closing_at_end_of_file() -> None:
+    assert chunk_document("x.md", "---\ncategory: x\n---") == []
+
+
+def test_front_matter_with_windows_line_endings() -> None:
+    chunks = chunk_document("x.md", "---\r\ncategory: x\r\n---\r\n# T\r\nTexto")
+
+    assert [(c.category, c.text) for c in chunks] == [("x", "Texto")]
+
+
 def test_reingesting_does_not_duplicate() -> None:
     pipeline = build(ScriptedChatModel.from_script([]))
     before = pipeline.store.count()
@@ -67,6 +89,20 @@ def test_answer_sends_context_and_maps_citations() -> None:
     assert "SOMENTE o contexto" in system.text
     assert "Pagamentos via Pix recebem 5% de desconto" in human.text
     assert [c.section for c in answer.citations] == ["Desconto no Pix"]
+
+
+@pytest.mark.parametrize(
+    "reply",
+    ["Há desconto [1, 2].", "Há desconto [1; 2].", "Há desconto [1,2] [99, 1]."],
+    ids=["virgula", "ponto-e-virgula", "repetida-e-inexistente"],
+)
+def test_grouped_citations_are_mapped(reply: str) -> None:
+    llm = ScriptedChatModel.from_script([AIMessage(reply)])
+    pipeline = build(llm, min_score=-1)
+
+    answer = pipeline.answer("Pagamentos via Pix recebem desconto?")
+
+    assert answer.citations == tuple(hit.chunk for hit in answer.retrieved[:2])
 
 
 def test_category_filter_limits_retrieval() -> None:

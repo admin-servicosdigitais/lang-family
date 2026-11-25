@@ -83,6 +83,21 @@ def test_communication_unit_is_bounded() -> None:
     assert [len(notes) for notes in state["history"]] == [100] * len(CHUNKS)
 
 
+def test_blank_reply_keeps_the_previous_notes() -> None:
+    replies = iter(["fato importante", "", "   \n", "resposta"])
+    worker = ScriptedChatModel(responder=lambda *_: AIMessage(next(replies)))
+
+    state = ask(worker, QUESTION, CHUNKS[:3])
+
+    assert state["history"] == ["fato importante"] * 3
+
+
+@pytest.mark.parametrize("limit", [0, -1])
+def test_notes_limit_must_be_positive(limit: int) -> None:
+    with pytest.raises(ValueError, match="notes_limit"):
+        ask(detective(), QUESTION, CHUNKS, notes_limit=limit)
+
+
 @pytest.mark.parametrize("count", [0, 60])
 def test_handles_any_number_of_chunks(count: int) -> None:
     model = detective()

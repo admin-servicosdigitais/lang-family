@@ -44,6 +44,8 @@ class WeaviateStore:
         )
 
     def upsert(self, chunks: Sequence[Chunk], vectors: Sequence[Vector]) -> None:
+        if not chunks:
+            return  # o SDK rejeita um lote vazio
         objects = [
             DataObject(properties=payload_of(c), uuid=generate_uuid5(c.id), vector=v)
             for c, v in zip(chunks, vectors, strict=True)

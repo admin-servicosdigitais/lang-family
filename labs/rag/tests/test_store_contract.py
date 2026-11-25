@@ -82,6 +82,15 @@ def test_upsert_with_same_id_replaces_record(filled: Backend) -> None:
     filled.eventually(check)
 
 
+def test_upsert_of_nothing_is_a_no_op(filled: Backend) -> None:
+    filled.store.upsert([], [])
+
+    def check() -> None:
+        assert filled.store.count() == 4
+
+    filled.eventually(check)
+
+
 def test_delete_by_source(filled: Backend) -> None:
     filled.store.delete_source("a.md")
 

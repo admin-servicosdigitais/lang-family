@@ -5,11 +5,11 @@ uv run python -m labs.mcp_lab.server --transport streamable-http --port 8765
 """
 
 import argparse
-from typing import Literal
+from typing import Annotated, Literal
 
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.types import ToolAnnotations
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 from labs.rag.chunking import DATA_DIR
 
@@ -33,6 +33,7 @@ class Ticket(BaseModel):
 
 
 def _find_order(order_id: str) -> Order:
+    order_id = order_id.strip().upper()
     if order_id not in ORDERS:
         raise ValueError(f"pedido {order_id} não encontrado")
     status, total = ORDERS[order_id]
@@ -63,15 +64,20 @@ def create_server(host: str = "127.0.0.1", port: int = 8765) -> FastMCP:
     async def abrir_chamado(
         order_id: str,
         ctx: Context,  # type: ignore[type-arg]
-        reason: str = Field(min_length=10, description="Descrição do problema"),
+        # Espaços são removidos antes de medir o tamanho mínimo.
+        reason: Annotated[
+            str,
+            StringConstraints(strip_whitespace=True, min_length=10),
+            Field(description="Descrição do problema"),
+        ],
         priority: Literal["baixa", "normal", "alta"] = "normal",
     ) -> Ticket:
         """Abre um chamado de atendimento para um pedido existente."""
         await ctx.report_progress(0, 2, "validando pedido")
-        _find_order(order_id)
+        order = _find_order(order_id)
         ticket = Ticket(
             ticket_id=f"C-{len(tickets) + 1:04d}",
-            order_id=order_id,
+            order_id=order.order_id,
             reason=reason,
             priority=priority,
         )
@@ -96,6 +102,8 @@ def create_server(host: str = "127.0.0.1", port: int = 8765) -> FastMCP:
     @server.prompt()
     def responder_cliente(order_id: str) -> str:
         """Roteiro para responder um cliente sobre um pedido."""
+        # Só um pedido existente entra no texto: o argumento não vira instrução livre.
+        order_id = _find_order(order_id).order_id
         return (
             f"Consulte o pedido {order_id} com a ferramenta consultar_pedido e escreva ao "
             "cliente uma resposta cordial, citando apenas dados retornados."

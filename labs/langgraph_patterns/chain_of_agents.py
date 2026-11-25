@@ -44,6 +44,8 @@ def split_text(text: str, chunk_size: int = 2000, chunk_overlap: int = 100) -> l
 def build_chain(
     worker: BaseChatModel, manager: BaseChatModel | None = None, *, notes_limit: int = 1000
 ) -> CompiledStateGraph[Any, Any, Any, Any]:
+    if notes_limit < 1:
+        raise ValueError("notes_limit precisa ser positivo")
     manager = manager or worker
 
     def work(state: ChainState) -> ChainState:
@@ -59,7 +61,8 @@ def build_chain(
             ]
         )
         # O limite é imposto em código: a CU nunca cresce junto com o documento.
-        notes = str(reply.text)[:notes_limit]
+        # Resposta vazia (recusa, corte) não pode apagar o que já foi coletado.
+        notes = str(reply.text).strip()[:notes_limit] or state.get("notes", "")
         return {"notes": notes, "history": [notes], "index": index + 1}
 
     def manage(state: ChainState) -> ChainState:

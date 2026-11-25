@@ -98,3 +98,20 @@ async def test_agent_discovers_and_uses_mcp_tools() -> None:
     assert failed.status == "error"
     assert "não encontrado" in failed.text
     assert state["messages"][-1].text.startswith("P-1001 foi enviado")
+
+
+async def test_looping_agent_stops_at_the_model_call_limit() -> None:
+    model = ScriptedChatModel(
+        responder=lambda *_: tool_call("consultar_pedido", {"order_id": "P-1001"})
+    )
+
+    async with (
+        stdio_client(stdio_server_params()) as (read, write),
+        ClientSession(read, write) as session,
+    ):
+        await session.initialize()
+        agent = await build_mcp_agent(session, model, max_model_calls=3)
+        # O limite de recursão baixo faz o teste falhar rápido se não houver proteção.
+        await agent.ainvoke({"messages": [("human", "status")]}, {"recursion_limit": 40})
+
+    assert len(model.calls) == 3

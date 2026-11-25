@@ -10,6 +10,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 from langchain.agents import create_agent
+from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain_core.language_models import BaseChatModel
 from langchain_mcp_adapters.tools import load_mcp_tools
 from langgraph.graph.state import CompiledStateGraph
@@ -28,12 +29,16 @@ def stdio_server_params() -> StdioServerParameters:
 
 
 async def build_mcp_agent(
-    session: ClientSession, model: BaseChatModel
+    session: ClientSession, model: BaseChatModel, *, max_model_calls: int = 6
 ) -> CompiledStateGraph[Any, Any, Any, Any]:
     """Descobre as ferramentas no servidor; o agente não as conhece de antemão."""
     tools = await load_mcp_tools(session)
     return create_agent(
-        model, tools=tools, system_prompt="Use as ferramentas para responder sobre pedidos."
+        model,
+        tools=tools,
+        system_prompt="Use as ferramentas para responder sobre pedidos.",
+        # Sem limite, um modelo em laço faria milhares de chamadas pagas.
+        middleware=[ModelCallLimitMiddleware(run_limit=max_model_calls, exit_behavior="end")],
     )
 
 

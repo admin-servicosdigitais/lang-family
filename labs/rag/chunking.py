@@ -1,11 +1,14 @@
 """Carga e fragmentação dos documentos: primeiro por seção, depois por tamanho."""
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 
 DATA_DIR = Path(__file__).parent / "data"
+# Cabeçalho entre duas linhas "---" no início do arquivo.
+_FRONT_MATTER = re.compile(r"\A---\n(.*?)^---(?:\n|\Z)", re.DOTALL | re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -23,17 +26,18 @@ class Chunk:
 
 
 def _front_matter(raw: str) -> tuple[dict[str, str], str]:
-    if not raw.startswith("---\n"):
+    match = _FRONT_MATTER.match(raw)
+    if match is None:
+        # Sem fechamento, o "---" é só uma régua horizontal do Markdown.
         return {}, raw
-    header, body = raw[4:].split("\n---\n", 1)
-    pairs = (line.split(":", 1) for line in header.splitlines() if ":" in line)
-    return {key.strip(): value.strip() for key, value in pairs}, body
+    pairs = (line.split(":", 1) for line in match[1].splitlines() if ":" in line)
+    return {key.strip(): value.strip() for key, value in pairs}, raw[match.end() :]
 
 
 def chunk_document(
     source: str, raw: str, *, chunk_size: int = 500, chunk_overlap: int = 50
 ) -> list[Chunk]:
-    metadata, body = _front_matter(raw)
+    metadata, body = _front_matter(raw.replace("\r\n", "\n"))
     by_section = MarkdownHeaderTextSplitter([("#", "title"), ("##", "section")])
     by_size = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     pieces = by_size.split_documents(by_section.split_text(body))

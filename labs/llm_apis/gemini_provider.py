@@ -22,6 +22,16 @@ from labs.llm_apis.types import (
 )
 from labs.shared.settings import model_for
 
+# Motivos de término que não indicam bloqueio nem falha. MAX_TOKENS e CONTINUATION
+# são cortes por limite: o texto já entregue é válido, apenas incompleto.
+_NORMAL_FINISH = (
+    None,
+    types.FinishReason.FINISH_REASON_UNSPECIFIED,
+    types.FinishReason.STOP,
+    types.FinishReason.MAX_TOKENS,
+    types.FinishReason.CONTINUATION,
+)
+
 
 class GeminiProvider:
     name = "gemini"
@@ -59,6 +69,14 @@ class GeminiProvider:
             raise RefusalError(self.name, f"resposta sem conteúdo: {reason}")
         return candidate.content.parts or []
 
+    def _check_blocked(self, chunk: types.GenerateContentResponse) -> None:
+        feedback = chunk.prompt_feedback
+        if feedback and feedback.block_reason:
+            raise RefusalError(self.name, f"requisição bloqueada: {feedback.block_reason}")
+        for candidate in chunk.candidates or []:
+            if candidate.finish_reason not in _NORMAL_FINISH:
+                raise RefusalError(self.name, f"resposta interrompida: {candidate.finish_reason}")
+
     def _result(
         self, response: types.GenerateContentResponse, usage: Usage, runs: list[ToolRun]
     ) -> ChatResult:
@@ -83,6 +101,7 @@ class GeminiProvider:
                 config=types.GenerateContentConfig(system_instruction=system),
             )
             for chunk in chunks:
+                self._check_blocked(chunk)
                 if chunk.text:
                     yield chunk.text
 

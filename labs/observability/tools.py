@@ -11,7 +11,7 @@ ORDERS = {
 @tool
 def consultar_pedido(order_id: str) -> str:
     """Consulta status, valor e região de um pedido, pelo número (ex.: P-1001)."""
-    order = ORDERS.get(order_id.upper())
+    order = ORDERS.get(order_id.strip().upper())
     if order is None:
         raise ToolException(f"pedido {order_id} não encontrado")
     return f"status: {order['status']}; total: R$ {order['total']:.2f}; região: {order['regiao']}"
@@ -20,7 +20,7 @@ def consultar_pedido(order_id: str) -> str:
 @tool
 def calcular_frete(total: float, regiao: str) -> str:
     """Calcula o frete a partir do valor do pedido e da região do país."""
-    if total > 299 and regiao.lower() in {"sul", "sudeste"}:
+    if total > 299 and regiao.strip().lower() in {"sul", "sudeste"}:
         return "frete grátis"
     return "frete: R$ 29,90"
 

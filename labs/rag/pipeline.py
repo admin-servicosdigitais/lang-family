@@ -12,6 +12,8 @@ from labs.rag.embeddings import Embedder
 from labs.rag.stores.base import Hit, VectorStore
 
 NO_ANSWER = "Não encontrei essa informação na base de conhecimento."
+# Aceita "[1]" e grupos como "[1, 2]", formato comum na resposta dos modelos.
+_CITATION = re.compile(r"\[(\d+(?:\s*[,;]\s*\d+)*)\]")
 
 SYSTEM_PROMPT = f"""Você é o atendimento da Loja Aurora. Responda usando SOMENTE o contexto.
 Cite as fontes usadas com o número entre colchetes, por exemplo [1].
@@ -74,7 +76,9 @@ class RagPipeline:
             ]
         )
         text = str(reply.text)
-        numbers = dict.fromkeys(int(n) for n in re.findall(r"\[(\d+)\]", text))
+        numbers = dict.fromkeys(
+            int(n) for group in _CITATION.findall(text) for n in re.findall(r"\d+", group)
+        )
         # Números fora do intervalo são citações inventadas e ficam de fora.
         citations = tuple(hits[n - 1].chunk for n in numbers if 1 <= n <= len(hits))
         return Answer(text, citations, tuple(hits))

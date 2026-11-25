@@ -16,6 +16,18 @@ API_KEY_VARS = {
     "gemini": "GEMINI_API_KEY",
 }
 
+# Credenciais que só podem existir no ambiente quando os testes rodam com --live.
+LIVE_ONLY_VARS = (
+    *API_KEY_VARS.values(),
+    "ANTHROPIC_AUTH_TOKEN",
+    "GOOGLE_API_KEY",
+    "PINECONE_API_KEY",
+    "LANGSMITH_API_KEY",
+    "LANGCHAIN_API_KEY",
+    "LANGFUSE_PUBLIC_KEY",
+    "LANGFUSE_SECRET_KEY",
+)
+
 
 def model_for(provider: str) -> str:
     return os.getenv(f"{provider.upper()}_MODEL") or DEFAULT_MODELS[provider]

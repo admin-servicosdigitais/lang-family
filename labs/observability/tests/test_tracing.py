@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from typing import Any
 
 import pytest
+from langchain_core.language_models import FakeListLLM
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langfuse import propagate_attributes
@@ -16,6 +17,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from labs.observability.agent import build_agent
 from labs.observability.tracing import (
+    MetricsCallback,
     langfuse_client,
     langfuse_handler,
     langsmith_client,
@@ -44,6 +46,30 @@ def test_redact_walks_nested_structures() -> None:
     data = {"a": [f"cpf {CPF}", {"b": EMAIL}], "c": 10, "d": "12345678909"}
 
     assert redact(data) == {"a": ["cpf [CPF]", {"b": "[EMAIL]"}], "c": 10, "d": "[CPF]"}
+
+
+def test_redact_covers_dictionary_keys() -> None:
+    assert redact({EMAIL: {CPF: 1}, 7: "ok"}) == {"[EMAIL]": {"[CPF]": 1}, 7: "ok"}
+
+
+@pytest.mark.parametrize("text", ["cpf_12345678909", "12345678909_nota", f"doc_{CPF}.pdf"])
+def test_redact_finds_cpf_next_to_underscore(text: str) -> None:
+    assert "[CPF]" in redact(text)
+
+
+def test_redact_keeps_digits_inside_identifiers() -> None:
+    identifier = "550e8400-e29b-41d4-a716-44665544000a"
+
+    assert redact(identifier) == identifier
+
+
+def test_metrics_cover_text_completion_models() -> None:
+    metrics = MetricsCallback()
+
+    FakeListLLM(responses=["ok"]).invoke("oi", {"callbacks": [metrics]})
+
+    assert metrics.metrics.llm_calls == 1
+    assert metrics.metrics.llm_seconds > 0
 
 
 def test_redact_preserves_dataclasses_and_messages() -> None:

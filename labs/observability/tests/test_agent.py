@@ -5,6 +5,7 @@ from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.checkpoint.memory import InMemorySaver
 
 from labs.observability.agent import SYSTEM_PROMPT, build_agent
+from labs.observability.tools import calcular_frete, consultar_pedido
 from labs.observability.tracing import MetricsCallback
 from labs.observability.triage import build_triage_chain
 from labs.shared.fake_model import ScriptedChatModel, tool_call
@@ -106,3 +107,31 @@ def test_triage_chain_routes_by_structured_output(category: str, urgent: bool, q
 
     assert build_triage_chain(model).invoke({"message": "mensagem"}) == queue
     assert model.calls[0][-1].text == "mensagem"
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        AIMessage("é sobre um pedido"),
+        tool_call("Triage", {"category": "desconhecida", "urgent": False}),
+        tool_call("Triage", {"category": "pedido"}),
+        tool_call("Outra", {}),
+    ],
+    ids=["sem-ferramenta", "categoria-invalida", "campo-ausente", "ferramenta-errada"],
+)
+def test_unreadable_classification_goes_to_a_human(reply: AIMessage) -> None:
+    chain = build_triage_chain(ScriptedChatModel.from_script([reply]))
+
+    assert chain.invoke({"message": "mensagem"}) == "fila-humana"
+
+
+def test_triage_does_not_hide_a_failing_model() -> None:
+    chain = build_triage_chain(ScriptedChatModel.from_script([]))
+
+    with pytest.raises(AssertionError, match="roteiro"):
+        chain.invoke({"message": "mensagem"})
+
+
+def test_tools_ignore_surrounding_spaces() -> None:
+    assert consultar_pedido.invoke({"order_id": " p-1001 "}).startswith("status: enviado")
+    assert calcular_frete.invoke({"total": 350.0, "regiao": " Sul "}) == "frete grátis"

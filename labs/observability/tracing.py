@@ -17,7 +17,8 @@ from langsmith import Client as LangSmithClient
 from pydantic import BaseModel
 
 _PII_PATTERNS = [
-    (re.compile(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b"), "[CPF]"),
+    # O CPF não pode estar colado a letras ou dígitos; o sublinhado separa ("cpf_123...").
+    (re.compile(r"(?<![^\W_])\d{3}\.?\d{3}\.?\d{3}-?\d{2}(?![^\W_])"), "[CPF]"),
     (re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"), "[EMAIL]"),
 ]
 
@@ -35,7 +36,11 @@ def redact(value: Any) -> Any:
     if value is None or isinstance(value, bool | int | float):
         return value
     if isinstance(value, dict):
-        return {key: redact(item) for key, item in value.items()}
+        # Só chaves de texto: outras poderiam virar tipos que não servem de chave.
+        return {
+            redact(key) if isinstance(key, str) else key: redact(item)
+            for key, item in value.items()
+        }
     if isinstance(value, list | tuple | set):
         return [redact(item) for item in value]
     if isinstance(value, BaseMessage):
@@ -127,6 +132,12 @@ class MetricsCallback(BaseCallbackHandler):
     def __init__(self) -> None:
         self.metrics = RunMetrics()
         self._started: dict[UUID, float] = {}
+
+    def on_llm_start(
+        self, serialized: dict[str, Any], prompts: list[str], *, run_id: UUID, **kwargs: Any
+    ) -> None:
+        # Modelos de texto puro não disparam on_chat_model_start.
+        self._started[run_id] = time.perf_counter()
 
     def on_chat_model_start(
         self,
